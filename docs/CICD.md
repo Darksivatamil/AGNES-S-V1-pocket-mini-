@@ -37,7 +37,15 @@ deployment. The deploy workflow handles this.
 
 ## 3. GitHub repository setup
 
-From the project root:
+This workspace is already initialized as a git repository with an initial commit
+on `main`. Add your remote and push:
+
+```bash
+git remote add origin git@github.com:<you>/<repo>.git
+git push -u origin main
+```
+
+If you copied the files without `.git`, initialize first:
 
 ```bash
 git init -b main
@@ -120,6 +128,10 @@ The script only uses the public publishable key. Existing tables return
 
 After the first successful deploy, future migrations are applied normally by
 `supabase db push --remote --yes`.
+
+The workflow commands target Supabase CLI v3 (local-by-default, `--remote` and
+`--yes` for hosted changes) and were checked against CLI 3.0.0. If you use an
+older CLI locally, omit `--remote` and use that version's confirmation flags.
 
 ## 6. Supabase deployment sequence
 
