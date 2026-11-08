@@ -137,7 +137,7 @@ older CLI locally, omit `--remote` and use that version's confirmation flags.
 
 On a push to `main` that changes `supabase/**`, the workflow:
 
-1. Checks out the repository and installs the latest Supabase CLI.
+1. Checks out the repository and installs Supabase CLI 3.0.0.
 2. Runs the schema preflight.
 3. Links the project with `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`.
 4. Baselines the two existing migrations when the schema is already full.
