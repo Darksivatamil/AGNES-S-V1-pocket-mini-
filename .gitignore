@@ -1,0 +1,22 @@
+# Secrets — never commit
+web/.env.local
+web/.env*.local
+supabase/functions/.env
+*.pem
+
+# Dependencies and build output
+web/node_modules/
+web/.next/
+web/tsconfig.tsbuildinfo
+firmware/**/build/
+dist/
+
+# Supabase CLI
+supabase/.temp/
+
+# Vercel
+.vercel/
+
+# OS/editor noise
+.DS_Store
+*.log

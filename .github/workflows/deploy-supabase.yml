@@ -1,0 +1,111 @@
+name: Deploy Supabase
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - ".github/workflows/deploy-supabase.yml"
+      - ".github/scripts/supabase-preflight.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-supabase
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Migrations + Edge Functions
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'https://cvoiqoydjqmowhjewxle.supabase.co' }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_R46rGIvdH5VlHnLmtZwK_Q_-mIDs2lV' }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || 'cvoiqoydjqmowhjewxle' }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      AGNES_CREDENTIAL_ENC_KEY: ${{ secrets.AGNES_CREDENTIAL_ENC_KEY }}
+      AGNES_ALLOWED_ORIGINS: ${{ vars.AGNES_ALLOWED_ORIGINS }}
+      AGNES_APP_URL: ${{ vars.AGNES_APP_URL }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Check remote schema state
+        id: preflight
+        run: bash .github/scripts/supabase-preflight.sh
+
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --yes
+
+      # The schema was originally applied by hand through the SQL Editor, so
+      # record those migration versions before pushing. On a fresh project the
+      # preflight reports "empty" and this step is skipped.
+      - name: Baseline existing schema
+        if: steps.preflight.outputs.state == 'full'
+        run: |
+          supabase migration repair --status applied 20261107000100 --remote --yes || true
+          supabase migration repair --status applied 20261107000200 --remote --yes || true
+
+      - name: Reject partially applied schema
+        if: steps.preflight.outputs.state == 'partial'
+        run: |
+          echo "::error::The remote schema is only partially applied. Repair it manually before deploying."
+          exit 1
+
+      - name: Push migrations
+        run: supabase db push --remote --yes
+
+      - name: Set Edge Function secrets
+        run: |
+          set -euo pipefail
+          test -n "$AGNES_CREDENTIAL_ENC_KEY" || {
+            echo "::error::Missing repository secret AGNES_CREDENTIAL_ENC_KEY"
+            exit 1
+          }
+          test -n "$AGNES_ALLOWED_ORIGINS" || {
+            echo "::error::Missing repository variable AGNES_ALLOWED_ORIGINS"
+            exit 1
+          }
+          args=(
+            "AGNES_CREDENTIAL_ENC_KEY=$AGNES_CREDENTIAL_ENC_KEY"
+            "AGNES_ALLOWED_ORIGINS=$AGNES_ALLOWED_ORIGINS"
+            "AGNES_ENV=production"
+          )
+          if [ -n "$AGNES_APP_URL" ]; then args+=("AGNES_APP_URL=$AGNES_APP_URL"); fi
+          if [ -n "$OPENROUTER_API_KEY" ]; then args+=("OPENROUTER_API_KEY=$OPENROUTER_API_KEY"); fi
+          if [ -n "$NVIDIA_API_KEY" ]; then args+=("NVIDIA_API_KEY=$NVIDIA_API_KEY"); fi
+          supabase secrets set "${args[@]}" --yes
+
+      - name: Deploy Edge Functions
+        run: |
+          set -euo pipefail
+          for dir in supabase/functions/agnes-*/; do
+            name=$(basename "$dir")
+            echo "Deploying $name"
+            supabase functions deploy "$name" --no-verify-jwt --yes
+          done
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/agnes-smoke.json -w "%{http_code}" \
+            -X POST "$SUPABASE_URL/functions/v1/agnes-pair" \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            -H "Content-Type: application/json" \
+            --data '{}')
+          echo "agnes-pair HTTP $code"
+          cat /tmp/agnes-smoke.json
+          if [ "$code" = "404" ] || ! grep -q '"ok"' /tmp/agnes-smoke.json; then
+            echo "::error::agnes-pair did not return the AGNES response envelope"
+            exit 1
+          fi

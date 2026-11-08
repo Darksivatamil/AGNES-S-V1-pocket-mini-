@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# These are public values: the project URL and the publishable key are designed
+# to ship in a browser. Override them with repository variables when rotating.
+env:
+  NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'https://cvoiqoydjqmowhjewxle.supabase.co' }}
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_R46rGIvdH5VlHnLmtZwK_Q_-mIDs2lV' }}
+
+jobs:
+  web:
+    name: Dashboard (typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Production build
+        run: npm run build
+
+  functions:
+    name: Edge Functions (check + tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: supabase/functions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.8
+      - name: Typecheck all functions
+        run: deno check agnes-*/index.ts
+      - name: Unit tests
+        run: deno test --allow-env --allow-net
+
+  sql:
+    name: SQL migrations (parse)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pglast
+        run: pip install pglast
+      - name: Parse every migration
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          files = sorted(Path("supabase/migrations").glob("*.sql"))
+          if not files:
+              raise SystemExit("no migrations found")
+          for path in files:
+              parse_sql(path.read_text())
+              print(f"OK {path}")
+          PY
+
+  ci:
+    name: CI summary
+    if: always()
+    needs: [web, functions, sql]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail when any required job failed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

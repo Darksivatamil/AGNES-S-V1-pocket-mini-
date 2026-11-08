@@ -1,0 +1,11 @@
+{
+  "lock": false,
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": false
+  },
+  "tasks": {
+    "check": "deno check **/index.ts",
+    "test": "deno test --allow-env --allow-net"
+  }
+}

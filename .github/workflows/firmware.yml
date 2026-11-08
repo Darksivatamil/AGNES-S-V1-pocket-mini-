@@ -1,0 +1,62 @@
+name: Firmware
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "firmware/**"
+      - ".github/workflows/firmware.yml"
+  pull_request:
+    paths:
+      - "firmware/**"
+      - ".github/workflows/firmware.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firmware-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    name: ESP32-C3 compile (huge_app)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v1
+
+      - name: Cache Arduino packages and libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+          key: arduino-${{ runner.os }}-esp32-3.3.12-u8g2-2.36.19-arduinojson-7.4.3
+
+      - name: Install ESP32 core and libraries
+        run: |
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls \
+            https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@3.3.12
+          arduino-cli lib install "U8g2@2.36.19"
+          arduino-cli lib install "ArduinoJson@7.4.3"
+
+      - name: Compile firmware
+        run: |
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32c3:PartitionScheme=huge_app \
+            --output-dir build/firmware \
+            firmware/AGNES_OS_2_0
+
+      - name: Upload firmware binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: agnes-firmware-${{ github.sha }}
+          path: build/firmware/*.bin
+          if-no-files-found: error

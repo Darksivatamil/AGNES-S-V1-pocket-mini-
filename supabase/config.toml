@@ -1,0 +1,48 @@
+project_id = "agnes-os"
+
+# All functions authenticate manually because the same endpoints serve both
+# Supabase users (browser) and paired devices (device token).
+[functions.agnes-pair]
+verify_jwt = false
+
+[functions.agnes-device-auth]
+verify_jwt = false
+
+[functions.agnes-chat]
+verify_jwt = false
+
+[functions.agnes-models]
+verify_jwt = false
+
+[functions.agnes-provider-test]
+verify_jwt = false
+
+[functions.agnes-providers]
+verify_jwt = false
+
+[functions.agnes-memory]
+verify_jwt = false
+
+[functions.agnes-sync]
+verify_jwt = false
+
+[functions.agnes-profile]
+verify_jwt = false
+
+[functions.agnes-device-status]
+verify_jwt = false
+
+[functions.agnes-device-command]
+verify_jwt = false
+
+[functions.agnes-notifications]
+verify_jwt = false
+
+[functions.agnes-pet]
+verify_jwt = false
+
+[functions.agnes-tools]
+verify_jwt = false
+
+[functions.agnes-account]
+verify_jwt = false
