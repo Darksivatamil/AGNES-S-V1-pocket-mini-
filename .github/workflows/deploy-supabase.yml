@@ -65,13 +65,29 @@ jobs:
       - name: Push migrations
         run: supabase db push --remote --yes
 
-      - name: Set Edge Function secrets
+      - name: Validate encryption key
         run: |
           set -euo pipefail
           test -n "$AGNES_CREDENTIAL_ENC_KEY" || {
             echo "::error::Missing repository secret AGNES_CREDENTIAL_ENC_KEY"
             exit 1
           }
+          case "$AGNES_CREDENTIAL_ENC_KEY" in
+            sb_publishable_*|sb_secret_*)
+              echo "::error::AGNES_CREDENTIAL_ENC_KEY is a Supabase API key. Generate a separate AES key with: openssl rand -base64 32"
+              exit 1
+              ;;
+          esac
+          decoded=$(printf '%s' "$AGNES_CREDENTIAL_ENC_KEY" | base64 --decode 2>/dev/null | wc -c)
+          if [ "$decoded" -ne 32 ]; then
+            echo "::error::AGNES_CREDENTIAL_ENC_KEY must be base64 of exactly 32 bytes (got $decoded). Generate with: openssl rand -base64 32"
+            exit 1
+          fi
+          echo "Encryption key shape OK (32 bytes)"
+
+      - name: Set Edge Function secrets
+        run: |
+          set -euo pipefail
           test -n "$AGNES_ALLOWED_ORIGINS" || {
             echo "::error::Missing repository variable AGNES_ALLOWED_ORIGINS"
             exit 1

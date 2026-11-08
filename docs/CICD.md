@@ -82,7 +82,9 @@ openssl rand -base64 32
 ```
 
 Copy the output into the `AGNES_CREDENTIAL_ENC_KEY` secret. Keep a backup: without
-it, stored provider keys cannot be decrypted.
+it, stored provider keys cannot be decrypted. This is **not** the Supabase
+publishable key. The deploy workflow rejects a key that starts with
+`sb_publishable_`/`sb_secret_` or does not decode to exactly 32 bytes.
 
 Create a Supabase access token:
 
@@ -142,13 +144,15 @@ On a push to `main` that changes `supabase/**`, the workflow:
 3. Links the project with `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`.
 4. Baselines the two existing migrations when the schema is already full.
 5. Pushes pending migrations.
-6. Sets function secrets from GitHub:
+6. Validates that `AGNES_CREDENTIAL_ENC_KEY` is a base64 32-byte AES key (not a
+   Supabase API key).
+7. Sets function secrets from GitHub:
    - `AGNES_CREDENTIAL_ENC_KEY`
    - `AGNES_ALLOWED_ORIGINS`
    - `AGNES_ENV=production`
    - optional `AGNES_APP_URL`, `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`
-7. Deploys each of the 15 functions with `--no-verify-jwt`.
-8. Calls `agnes-pair` with an empty body and verifies it returns the AGNES
+8. Deploys each of the 15 functions with `--no-verify-jwt`.
+9. Calls `agnes-pair` with an empty body and verifies it returns the AGNES
    `{ "ok": ... }` envelope instead of a gateway `404`.
 
 You can also run it manually from **Actions → Deploy Supabase → Run workflow**.
@@ -254,6 +258,7 @@ arduino-cli compile \
 | `permission denied for function` in CI | The RPC probe expects `401/403`; a `404` means the function is missing |
 | CORS error after Vercel deploy | Add the exact Vercel origin to `AGNES_ALLOWED_ORIGINS` and redeploy |
 | `server_misconfigured` from a function | Missing `AGNES_CREDENTIAL_ENC_KEY` or Supabase-injected variables |
+| `AGNES_CREDENTIAL_ENC_KEY is a Supabase API key` | You pasted the publishable key. Run `openssl rand -base64 32` and store that output instead |
 | Function returns `404` after deploy | The function name or project ref is wrong; check `supabase functions list` |
 | Firmware artifact not found | The compile failed; read the **Compile firmware** step |
 
