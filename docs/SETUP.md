@@ -61,8 +61,8 @@ supabase/migrations/20261107000200_chat_finalize.sql
 With the Supabase CLI, from the repository root:
 
 ```bash
-supabase link --project-ref <project-ref>
-supabase db push
+supabase link --project-ref <project-ref> --yes
+supabase db push --remote --yes
 ```
 
 Or paste each file into the dashboard SQL editor, in order. The first migration
@@ -92,12 +92,12 @@ for fn in agnes-pair agnes-device-auth agnes-chat agnes-models \
           agnes-providers agnes-provider-test agnes-memory agnes-sync \
           agnes-profile agnes-device-status agnes-device-command \
           agnes-notifications agnes-pet agnes-tools agnes-account; do
-  supabase functions deploy "$fn" --no-verify-jwt --project-ref <project-ref> --yes
+  supabase functions deploy "$fn" --no-verify-jwt --yes
 done
 ```
 
-The 15 function names are listed above. `docs/CICD.md` shows the same loop used by
-GitHub Actions.
+Run this after `supabase link`. The 15 function names are listed above.
+`docs/CICD.md` shows the same loop used by GitHub Actions.
 
 ### 1.4 Set Edge Function secrets
 
@@ -106,7 +106,7 @@ Copy `supabase/functions/.env.example` to an untracked file, fill it, and push i
 ```bash
 cp supabase/functions/.env.example supabase/functions/.env
 # edit supabase/functions/.env
-supabase secrets set --env-file supabase/functions/.env --project-ref <project-ref> --yes
+supabase secrets set --env-file supabase/functions/.env --yes
 ```
 
 Required:
