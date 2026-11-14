@@ -134,8 +134,10 @@ AGNES-S-V1-pocket-mini/
 2. Create a Supabase project, apply both migrations, deploy the functions, and set
    `AGNES_CREDENTIAL_ENC_KEY` plus `AGNES_ALLOWED_ORIGINS`.
 3. Configure `web/.env.local` from `web/.env.example`; run `npm install && npm run dev`.
-4. The project URL in `firmware/AGNES_OS_2_0/src/Config.h` is preconfigured; compile with
-   `esp32:esp32:esp32c3:PartitionScheme=huge_app`; flash.
+4. The project URL in `firmware/AGNES_OS_2_0/src/Config.h` is preconfigured; flash the
+   ESP32-C3 with `./scripts/flash.sh` (it compiles with
+   `esp32:esp32:esp32c3:PartitionScheme=huge_app`, detects the port, refuses any
+   non-ESP32 board, and retries the upload).
 5. Generate a pairing code in **Devices**, enter it with your 2.4 GHz Wi-Fi credentials
    in the device portal, then configure a provider in **Providers**.
 
@@ -146,7 +148,10 @@ cd web && npm install && npm run dev
 # Edge Functions (check + tests)
 cd supabase/functions && deno check **/index.ts && deno test --allow-env --allow-net
 
-# Firmware
+# Firmware (one command: compile + detect port + upload, refuses non-ESP32 boards)
+./scripts/flash.sh
+
+# Firmware (compile only)
 arduino-cli compile --fqbn esp32:esp32:esp32c3:PartitionScheme=huge_app firmware/AGNES_OS_2_0
 ```
 
@@ -163,6 +168,7 @@ arduino-cli compile --fqbn esp32:esp32:esp32c3:PartitionScheme=huge_app firmware
 | [`docs/HARDWARE.md`](docs/HARDWARE.md) | Wiring, OLED, charger/power-path, bring-up checklist |
 | [`docs/TESTING.md`](docs/TESTING.md) | Executed vs. unexecuted tests, manual acceptance plan |
 | [`docs/CICD.md`](docs/CICD.md) | GitHub Actions, Supabase deploy, Vercel, secrets, live status |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Restructure plan, god-file splits, P0/P1/P2 upgrade list |
 | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Dashboard, pairing, firmware, AI, power issues |
 | [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md) | 2.0.0 scope, verification, known limitations |
 

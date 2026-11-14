@@ -35,6 +35,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Fail fast and name exactly what is missing instead of letting
+      # `supabase link` die on an empty token.
+      - name: Check required configuration
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] || missing+=("SUPABASE_ACCESS_TOKEN - repository secret (Supabase access token, sbp_...)")
+          [ -n "${SUPABASE_DB_PASSWORD:-}" ] || missing+=("SUPABASE_DB_PASSWORD - repository secret (project database password)")
+          [ -n "${AGNES_CREDENTIAL_ENC_KEY:-}" ] || missing+=("AGNES_CREDENTIAL_ENC_KEY - repository secret (openssl rand -base64 32)")
+          [ -n "${AGNES_ALLOWED_ORIGINS:-}" ] || missing+=("AGNES_ALLOWED_ORIGINS - repository variable (comma-separated browser origins)")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing GitHub configuration. Add these under Settings -> Secrets and variables -> Actions:"
+            for item in "${missing[@]}"; do
+              echo "::error::  - $item"
+            done
+            echo "::error::Full instructions: docs/CICD.md section 4."
+            exit 1
+          fi
+          case "$SUPABASE_ACCESS_TOKEN" in
+            sbp_*|ey*) ;;
+            *) echo "::warning::SUPABASE_ACCESS_TOKEN does not look like a Supabase access token (expected sbp_...).";;
+          esac
+          echo "Required secrets and variables are present."
+
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
         with:
@@ -45,7 +69,12 @@ jobs:
         run: bash .github/scripts/supabase-preflight.sh
 
       - name: Link project
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --yes
+        run: |
+          if ! supabase link --project-ref "$SUPABASE_PROJECT_REF" --yes; then
+            echo "::error::supabase link failed for project $SUPABASE_PROJECT_REF."
+            echo "::error::Check SUPABASE_ACCESS_TOKEN (must be able to open this project) and SUPABASE_DB_PASSWORD."
+            exit 1
+          fi
 
       # The schema was originally applied by hand through the SQL Editor, so
       # record those migration versions before pushing. On a fresh project the
